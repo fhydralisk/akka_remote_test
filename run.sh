@@ -9,5 +9,5 @@ if [ -n $1 ]; then
 fi
 
 echo "Running $MAIN_CLASS"
-mvn exec:java -Dexec.mainClass=${MAIN_CLASS} -Dexec.args=${ARGS}
+mvn exec:java -Dexec.mainClass="${MAIN_CLASS}" -Dexec.args="${ARGS}"
 
