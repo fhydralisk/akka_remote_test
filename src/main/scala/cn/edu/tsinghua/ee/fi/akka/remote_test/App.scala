@@ -14,7 +14,7 @@ object App {
     Try((args(0), args(1))) map { case (host, role) =>
       val sendAfter = Try(args(2).toInt second) getOrElse ( 30 seconds )
 
-      val config = ConfigFactory.load().withFallback(ConfigFactory.parseString(s"""akka.remote.netty.tcp.hostname = "$host""""))
+      val config = ConfigFactory.parseString(s"""akka.remote.netty.tcp.hostname = "$host"""").withFallback(ConfigFactory.load())
       val system = ActorSystem.create("RemoteTestSystem", config)
       role match {
         case "Sender" =>
