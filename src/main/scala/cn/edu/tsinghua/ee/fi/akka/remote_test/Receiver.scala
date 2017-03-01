@@ -14,7 +14,7 @@ object Receiver {
 class Receiver extends Actor with ActorLogging {
 
   override def receive = {
-    case msg @ String =>
+    case msg : String =>
       log.info(s"Message received $msg")
   }
 }
