@@ -18,6 +18,8 @@ object App {
       val system = ActorSystem.create("RemoteTestSystem", config)
       role match {
         case "Sender" =>
+          import system.dispatcher
+
           system.scheduler.scheduleOnce(sendAfter) {
             system.actorSelection(receiverPath) ! "Test message"
           }
