@@ -1,6 +1,6 @@
 package cn.edu.tsinghua.ee.fi.akka.remote_test
 
-import akka.actor.{Actor, ActorSystem, Props}
+import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
 import akka.pattern.ask
 import com.typesafe.config.ConfigFactory
 
@@ -44,14 +44,14 @@ object Hbcdf {
       result map {
         case HeartbeatRsp(terminate) =>
           val ed = System.nanoTime()
-          print(ed - st)
+          println(ed - st)
           if (terminate)
             system.terminate()
       } recover {
         case _ : akka.pattern.AskTimeoutException =>
-          print("timeout")
+          println("timeout")
         case ex: Throwable =>
-          print(s"unhandled exception $ex")
+          println(s"unhandled exception $ex")
       }
     }
   }
@@ -67,7 +67,7 @@ object Messages {
 }
 
 
-class HBReceiver(count: Int) extends Actor {
+class HBReceiver(count: Int) extends Actor with ActorLogging {
 
   var counter = 0
 
@@ -77,6 +77,7 @@ class HBReceiver(count: Int) extends Actor {
     case _ : HeartbeatReq =>
       counter += 1
       sender() ! HeartbeatRsp(counter >= count)
+      log.info("heartbeat req")
       if (counter >= count)
         context.system.terminate()
     case _ =>
