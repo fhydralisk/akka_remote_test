@@ -3,6 +3,7 @@ package cn.edu.tsinghua.ee.fi.akka.remote_test
 import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
 import akka.dispatch.{BoundedMessageQueueSemantics, RequiresMessageQueue}
 import akka.pattern.ask
+import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 
 import concurrent.duration._
@@ -12,7 +13,7 @@ import concurrent.duration._
   */
 object Hbcdf {
 
-  val heartbeatInterval: FiniteDuration = 1 second
+
   def main(args: Array[String]): Unit = {
 
     val host = args(1)
@@ -33,31 +34,9 @@ object Hbcdf {
   }
 
   def doSenderProcess(system: ActorSystem, peer: String): Unit = {
-    import system.dispatcher
-    import akka.util.Timeout
-    implicit val timeout: Timeout = 3000 millis
-    import Messages._
+    system.actorOf(Props(new HBSender(peer)), name = "hbsender")
+    system.actorOf(Props(new PingPongSender(peer)), name = "pingpongsender")
 
-    system.scheduler.schedule(1 second, heartbeatInterval) {
-      val receiver = system.actorSelection(s"akka.tcp://RemoteTestSystem@$peer:2551/user/hbreceiver")
-      val st = System.nanoTime()
-      val result = receiver ? HeartbeatReq()
-      result map {
-        case HeartbeatRsp(terminate) =>
-          val ed = System.nanoTime()
-          println(ed - st)
-          if (terminate)
-            system.terminate()
-      } recover {
-        case _ : akka.pattern.AskTimeoutException =>
-          println("timeout")
-        case ex: Throwable =>
-          println(s"unhandled exception $ex")
-      }
-    }
-    system.scheduler.scheduleOnce(1 second) {
-      system.actorOf(Props(new PingPongSender(peer)))
-    }
   }
 
   def doReceiverProcess(system: ActorSystem): Unit = {
@@ -71,6 +50,50 @@ object Messages {
   case class HeartbeatRsp(terminate: Boolean)
 }
 
+
+class HBSender(peer: String) extends Actor with ActorLogging {
+  import Messages._
+  import context.dispatcher
+  implicit val timeout: Timeout = 3 seconds
+
+  val heartbeatInterval: FiniteDuration = 1 second
+  val timeoutsBeforeDown = 10
+  var timeouts = 0
+  var lastHeartBeat: Long = 0
+
+  context.system.scheduler.schedule(1 second, heartbeatInterval) {
+    val receiver = context.actorSelection(s"akka.tcp://RemoteTestSystem@$peer:2551/user/hbreceiver")
+    val st = System.nanoTime()
+    val result = receiver ? HeartbeatReq()
+    result map {
+      case HeartbeatRsp(terminate) =>
+        val ed = System.nanoTime()
+        output(ed - st, if (lastHeartBeat == 0) -1 else ed - lastHeartBeat)
+        lastHeartBeat = ed
+        if (terminate)
+          context.system.terminate()
+        else
+          timeouts = 0
+    } recover {
+      case _ : akka.pattern.AskTimeoutException =>
+        output(-1, -1)
+        timeouts += 1
+        if (timeouts >= timeoutsBeforeDown)
+          context.system.terminate()
+      case ex: Throwable =>
+        println(s"unhandled exception $ex")
+    }
+  }
+
+  def receive = {
+    case _ =>
+
+  }
+
+  def output(latency: Long, interval: Long): Unit = {
+    println(s"$latency|$interval")
+  }
+}
 
 class HBReceiver(count: Int) extends Actor with ActorLogging {
 
@@ -98,9 +121,10 @@ class HBReceiver(count: Int) extends Actor with ActorLogging {
 class PingPongSender(peer: String) extends Actor with RequiresMessageQueue[BoundedMessageQueueSemantics] {
 
   import context.dispatcher
+  val scale = 10
 
-  context.system.scheduler.schedule(0 second, 10 millis) {
-    1 to 1000 foreach { _ =>
+  context.system.scheduler.schedule(1 second, 10 millis) {
+    1 to scale foreach { _ =>
       context.actorSelection(s"akka.tcp://RemoteTestSystem@$peer:2551/user/pingpongreceiver") ! "Hello World"
     }
   }
