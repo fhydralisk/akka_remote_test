@@ -1,6 +1,7 @@
 package cn.edu.tsinghua.ee.fi.akka.remote_test
 
 import akka.actor.{Actor, ActorLogging, ActorSystem, Props}
+import akka.dispatch.{BoundedMessageQueueSemantics, RequiresMessageQueue}
 import akka.pattern.ask
 import com.typesafe.config.ConfigFactory
 
@@ -34,7 +35,7 @@ object Hbcdf {
   def doSenderProcess(system: ActorSystem, peer: String): Unit = {
     import system.dispatcher
     import akka.util.Timeout
-    implicit val timeout: Timeout = 50 millis
+    implicit val timeout: Timeout = 3000 millis
     import Messages._
 
     system.scheduler.schedule(1 second, heartbeatInterval) {
@@ -54,10 +55,14 @@ object Hbcdf {
           println(s"unhandled exception $ex")
       }
     }
+    system.scheduler.scheduleOnce(1 second) {
+      system.actorOf(Props(new PingPongSender(peer)))
+    }
   }
 
   def doReceiverProcess(system: ActorSystem): Unit = {
     system.actorOf(Props(new HBReceiver(100)), name = "hbreceiver")
+    system.actorOf(Props(new PingPongReceiver), name="pingpongreceiver")
   }
 }
 
@@ -84,4 +89,29 @@ class HBReceiver(count: Int) extends Actor with ActorLogging {
       // Do nothing
   }
 
+}
+
+/**
+  * Together with @PingPongSender, simulates user logic
+  */
+
+class PingPongSender(peer: String) extends Actor with RequiresMessageQueue[BoundedMessageQueueSemantics] {
+
+  context.system.scheduler.schedule(0 second, 10 millis) {
+    1 to 1000 foreach { _ =>
+      context.actorSelection(s"akka.tcp://RemoteTestSystem@$peer:2551/user/pingpongreceiver") ! "Hello World"
+    }
+  }
+
+  def receive = {
+    case _ =>
+      // do nothing
+  }
+}
+
+class PingPongReceiver extends Actor with RequiresMessageQueue[BoundedMessageQueueSemantics] {
+  def receive = {
+    case s : _ =>
+      sender() ! s
+  }
 }
