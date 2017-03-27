@@ -97,6 +97,8 @@ class HBReceiver(count: Int) extends Actor with ActorLogging {
 
 class PingPongSender(peer: String) extends Actor with RequiresMessageQueue[BoundedMessageQueueSemantics] {
 
+  import context.dispatcher
+
   context.system.scheduler.schedule(0 second, 10 millis) {
     1 to 1000 foreach { _ =>
       context.actorSelection(s"akka.tcp://RemoteTestSystem@$peer:2551/user/pingpongreceiver") ! "Hello World"
@@ -111,7 +113,7 @@ class PingPongSender(peer: String) extends Actor with RequiresMessageQueue[Bound
 
 class PingPongReceiver extends Actor with RequiresMessageQueue[BoundedMessageQueueSemantics] {
   def receive = {
-    case s : _ =>
+    case s @ _ =>
       sender() ! s
   }
 }
