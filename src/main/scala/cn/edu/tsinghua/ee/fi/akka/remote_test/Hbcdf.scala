@@ -99,6 +99,7 @@ class HBSender(peer: String, outputPath: String, header: String) extends Actor w
 
   def output(latency: Long, interval: Long): Unit = {
     filePrinter.println(s"$latency|$interval")
+    println(s"$latency|$interval")
   }
 
   override def preStart(): Unit = {
