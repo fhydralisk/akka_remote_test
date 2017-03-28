@@ -14,6 +14,7 @@ import scala.util.Try
   */
 object Hbcdf {
 
+  val defaultCountAfterTerminate = 300
 
   def main(args: Array[String]): Unit = {
 
@@ -30,7 +31,8 @@ object Hbcdf {
         val header = Try(args(4)) getOrElse ""
         doSenderProcess(system, peer, outputPath, header)
       case "receiver" =>
-        doReceiverProcess(system)
+        val countAfterTerminate = Try(args(3) toInt) getOrElse defaultCountAfterTerminate
+        doReceiverProcess(system, countAfterTerminate)
       case _ =>
         system.terminate()
     }
@@ -42,8 +44,8 @@ object Hbcdf {
 
   }
 
-  def doReceiverProcess(system: ActorSystem): Unit = {
-    system.actorOf(Props(new HBReceiver(100)), name = "hbreceiver")
+  def doReceiverProcess(system: ActorSystem, countAfterTerminate: Int): Unit = {
+    system.actorOf(Props(new HBReceiver(countAfterTerminate)), name = "hbreceiver")
     system.actorOf(Props(new PingPongReceiver), name="pingpongreceiver")
   }
 }
