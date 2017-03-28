@@ -7,6 +7,7 @@ import akka.util.Timeout
 import com.typesafe.config.ConfigFactory
 
 import concurrent.duration._
+import scala.util.Try
 
 /**
   * Created by hydra on 2017/3/23.
@@ -25,7 +26,9 @@ object Hbcdf {
 
     role match {
       case "sender" =>
-        doSenderProcess(system, peer)
+        val outputPath = Try(args(3)) getOrElse "~/hbcdf.log"
+        val header = Try(args(4)) getOrElse ""
+        doSenderProcess(system, peer, outputPath, header)
       case "receiver" =>
         doReceiverProcess(system)
       case _ =>
@@ -33,8 +36,8 @@ object Hbcdf {
     }
   }
 
-  def doSenderProcess(system: ActorSystem, peer: String): Unit = {
-    system.actorOf(Props(new HBSender(peer)), name = "hbsender")
+  def doSenderProcess(system: ActorSystem, peer: String, outputPath: String, header: String): Unit = {
+    system.actorOf(Props(new HBSender(peer, outputPath, header)), name = "hbsender")
     system.actorOf(Props(new PingPongSender(peer)), name = "pingpongsender")
 
   }
@@ -51,7 +54,7 @@ object Messages {
 }
 
 
-class HBSender(peer: String) extends Actor with ActorLogging {
+class HBSender(peer: String, outputPath: String, header: String) extends Actor with ActorLogging {
   import Messages._
   import context.dispatcher
   implicit val timeout: Timeout = 3 seconds
@@ -60,6 +63,8 @@ class HBSender(peer: String) extends Actor with ActorLogging {
   val timeoutsBeforeDown = 10
   var timeouts = 0
   var lastHeartBeat: Long = 0
+
+  val filePrinter = new java.io.PrintWriter(new java.io.File(outputPath))
 
   context.system.scheduler.schedule(1 second, heartbeatInterval) {
     val receiver = context.actorSelection(s"akka.tcp://RemoteTestSystem@$peer:2551/user/hbreceiver")
@@ -91,7 +96,15 @@ class HBSender(peer: String) extends Actor with ActorLogging {
   }
 
   def output(latency: Long, interval: Long): Unit = {
-    println(s"$latency|$interval")
+    filePrinter.println(s"$latency|$interval")
+  }
+
+  override def preStart(): Unit = {
+    filePrinter.println(s"$header")
+  }
+
+  override def postStop(): Unit = {
+    filePrinter.close()
   }
 }
 
